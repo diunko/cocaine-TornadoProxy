@@ -8,5 +8,6 @@ setup(
     author="Anton Tyurin",
     author_email="noxiouz@yandex.ru",
     license="LGPLv3+",
-    scripts=['cocaine-tornado-proxy']
+    scripts=['cocaine-tornado-proxy'],
+    data_files=[('/etc/init.d/',['init/cocaine-tornado-proxy'])]
 )
