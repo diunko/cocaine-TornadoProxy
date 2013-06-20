@@ -21,9 +21,10 @@
 PATH=/sbin:/usr/sbin:/bin:/usr/bin
 DESC="cocaine-tornado-proxy"
 NAME=cocaine-tornado-proxy
-COUNT=5
 PID_PATH=/var/run
 START_PORT=8080
+
+COUNT=$2
 
 do_start()
 {
@@ -68,5 +69,3 @@ case "$1" in
 	exit 3
 	;;
 esac
-
-:

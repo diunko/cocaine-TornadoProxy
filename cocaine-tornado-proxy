@@ -197,24 +197,30 @@ class BasicHandler(web.RequestHandler):
     cache = defaultdict(list)
 
     def get_service(self, name):
-        while True:
-            if len(self.cache['key']) < tornado.options.options.count:
-                try:
-                    created = [Service(name, raise_reconnect_failure=False)
+        if len(self.cache['key']) < tornado.options.options.count:
+            try:
+                created = [Service(name, raise_reconnect_failure=False)
                                     for _ in xrange(0, tornado.options.options.count - len(self.cache[name]))]
-                    [logger.info("Connect to app: %s endpoint %s " % (app.servicename, app.service_endpoint))
+                [logger.info("Connect to app: %s endpoint %s " % (app.servicename, app.service_endpoint))
                                     for app in created]
-                    self.cache[name].extend(created)
-                except Exception as err:
-                    logger.error(str(err))
-                    return None
-            chosen = random.choice(self.cache[name])
-            if chosen.connected:
-                return chosen
-            else:
-                logger.warning("Service %s disconnected %s" % (chosen.servicename,
+                self.cache[name].extend(created)
+            except Exception as err:
+                logger.error(str(err))
+                return None
+        chosen = random.choice(self.cache[name])
+        if chosen.connected:
+            return chosen
+        else:
+            logger.warning("Service %s disconnected %s" % (chosen.servicename,
                                                                     chosen.service_endpoint))
-                self.cache[name].remove(chosen)
+            try:
+                chosen.reconnect()
+                if chosen.connected:
+                    return chosen
+                else:
+                    return None
+            except Exception as err:
+                return None
 
 
     @web.asynchronous

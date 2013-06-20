@@ -12,7 +12,7 @@ Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},
  python-tornado,
  python-msgpack | msgpack-python,
- cocaine-framewrok-python (>=0.10.4-4)
+ cocaine-framework-python (>=0.10.4-6)
 XB-Python-Version: >= 2.6
 Description: Tornado-based cocaine HTTP proxy
  <insert long description, indented with spaces>

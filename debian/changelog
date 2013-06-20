@@ -1,3 +1,15 @@
+cocaine-tornado-proxy (0.10.5-3) lucid; urgency=low
+
+  * fix count in init script 
+
+ -- Anton Tyurin <noxiouz@yandex-team.ru>  Wed, 19 Jun 2013 18:26:34 +0400
+
+cocaine-tornado-proxy (0.10.5-2) lucid; urgency=low
+
+  * fix wrong dependencies 
+
+ -- Anton Tyurin <noxiouz@yandex-team.ru>  Wed, 19 Jun 2013 17:06:29 +0400
+
 cocaine-tornado-proxy (0.10.5-1) unstable; urgency=low
 
   * Initial release (Closes: #nnnn)  <nnnn is the bug number of your ITP>
