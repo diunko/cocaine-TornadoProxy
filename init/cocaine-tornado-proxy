@@ -25,6 +25,8 @@ PID_PATH=/var/run
 START_PORT=8080
 TORNADO_COUNT=5 # Count of tornado processes
 APPS_COUNT=10 # Count of the same applications in one tornado process 
+LOG="/var/log/tornado.log"
+LOGLEVEL="info" # debug|info|warning|error|none
 
 if [ $2 ]; then
     TORNADO_COUNT=$2
@@ -42,7 +44,7 @@ do_start()
        PIDFILE=$PID_PATH/tornado-proxy.$i 
        PORT=$(($START_PORT+$i))
        echo -n "Start $i on port $PORT and pid $PIDFILE "
-       cocaine-tornado-proxy --daemon --port=$PORT --pidfile=$PIDFILE --count=$APPS_COUNT start
+       cocaine-tornado-proxy --daemon --port=$PORT --pidfile=$PIDFILE --logging=$LOGLEVEL --log_file_prefix=$LOG --count=$APPS_COUNT start
        if [ $? -ne 0 ]; 
        then
              echo "FAIL"

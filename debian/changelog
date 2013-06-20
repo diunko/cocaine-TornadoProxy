@@ -1,3 +1,10 @@
+cocaine-tornado-proxy (0.10.5-5) lucid; urgency=low
+
+  * add path for log
+  * add loglevel in init script
+
+ -- Anton Tyurin <noxiouz@yandex-team.ru>  Thu, 20 Jun 2013 20:03:17 +0400
+
 cocaine-tornado-proxy (0.10.5-4) lucid; urgency=low
 
   * reconnect disconnected service instead of recreating it 
