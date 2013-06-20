@@ -1,3 +1,10 @@
+cocaine-tornado-proxy (0.10.5-4) lucid; urgency=low
+
+  * reconnect disconnected service instead of recreating it 
+  * improve init script 
+
+ -- Anton Tyurin <noxiouz@yandex-team.ru>  Thu, 20 Jun 2013 15:50:09 +0400
+
 cocaine-tornado-proxy (0.10.5-3) lucid; urgency=low
 
   * fix count in init script 

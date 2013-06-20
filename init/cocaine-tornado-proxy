@@ -23,17 +23,32 @@ DESC="cocaine-tornado-proxy"
 NAME=cocaine-tornado-proxy
 PID_PATH=/var/run
 START_PORT=8080
+TORNADO_COUNT=5 # Count of tornado processes
+APPS_COUNT=10 # Count of the same applications in one tornado process 
 
-COUNT=$2
+if [ $2 ]; then
+    TORNADO_COUNT=$2
+fi
+
+if [ $3 ]; then
+    APPS_COUNT=$3
+fi
 
 do_start()
-{
-    for (( i=1; i<=$COUNT; i++ ))
+{   
+    echo "Start $TORNADO_COUNT tornadoes with $APPS_COUNT endpoints per cocaine application"
+    for (( i=1; i<=$TORNADO_COUNT; i++ ))
     do
        PIDFILE=$PID_PATH/tornado-proxy.$i 
        PORT=$(($START_PORT+$i))
-       echo "Start $i on port $PORT and pid $PIDFILE"
-       cocaine-tornado-proxy --daemon --port=$PORT --pidfile=$PIDFILE start
+       echo -n "Start $i on port $PORT and pid $PIDFILE "
+       cocaine-tornado-proxy --daemon --port=$PORT --pidfile=$PIDFILE --count=$APPS_COUNT start
+       if [ $? -ne 0 ]; 
+       then
+             echo "FAIL"
+       else
+             echo "OK"
+       fi
     done
 }
 
@@ -42,12 +57,16 @@ do_start()
 #
 do_stop()
 {
-    for (( i=1; i<=$COUNT; i++ ))
-    do
-       PIDFILE=$PID_PATH/tornado-proxy.$i 
-       PORT=$(($START_PORT+$i))
-       cocaine-tornado-proxy --daemon --pidfile=$PIDFILE stop
-    done
+    PIDS=($(ls -1 $PID_PATH/ | grep tornado))
+    if [ ${#PIDS[@]} -gt 0 ]; then
+        for pid in "${PIDS[@]}"
+        do
+            PIDFILE=$PID_PATH/$pid
+            cocaine-tornado-proxy --daemon --pidfile=$PIDFILE stop
+        done
+    else
+        echo "There are no working processes"
+    fi
 }
 
 
@@ -65,7 +84,7 @@ case "$1" in
     do_start
 	;;
   *)
-	echo "Usage: $SCRIPTNAME {start|stop|status|restart}" >&2
+	echo "Usage: $SCRIPTNAME {start|stop|status|restart} [tornadoes_count] [applications count]" >&2
 	exit 3
 	;;
 esac
