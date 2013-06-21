@@ -1,3 +1,9 @@
+cocaine-tornado-proxy (0.10.5-6) lucid; urgency=low
+
+  * add alternative implementation 
+
+ -- Anton Tyurin <noxiouz@yandex-team.ru>  Fri, 21 Jun 2013 16:46:42 +0400
+
 cocaine-tornado-proxy (0.10.5-5) lucid; urgency=low
 
   * add path for log

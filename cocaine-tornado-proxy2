@@ -1,26 +1,26 @@
 #!/usr/bin/env python
 
 import random
-import os
-import atexit
-import sys
 import logging
+import atexit
 import time
+import re
+import os
+import sys
 from functools import partial
 from signal import SIGTERM
 from collections import defaultdict
 
-from tornado import web
-from tornado import ioloop
-from tornado.log import LogFormatter
+import tornado.httpserver
 import tornado.options
+from tornado import ioloop
+
 import msgpack
 
 from cocaine.services import Service
-from cocaine.exceptions import ServiceError
 
 SERVICE_CACHE_COUNT = 5
-REFRESH_PERIOD = 3
+REFRESH_PERIOD = 10
 logger = logging.getLogger()
 
 class Daemon(object):
@@ -161,14 +161,92 @@ tornado.options.define("pidfile", default="/var/run/tornado", type=str, help="pi
 actions = tornado.options.parse_command_line()
 
 
+cache = defaultdict(list)
+dying = defaultdict(list)
+URL_REGEX = re.compile(r"/([^/]*)/([^/]*)")
+io_loop = ioloop.IOLoop.instance()
+
+
+DEFAULT_TIMEOUT=1
+def get_timeout(app_name):
+    """dummy"""
+    return DEFAULT_TIMEOUT
+
+def reconnector(app, name):
+    try:
+        logger.info("Try reconnect %s %s" % (app.servicename, "%s:%s" % app.service_endpoint))
+        app.reconnect()
+    except Exception as err:
+        logger.error("Unable to reconnect %s, because %s" % (name, str(err)))
+    dying[name].remove(app)
+    cache[name].append(app)
+    next_refr = random.random() * REFRESH_PERIOD + get_timeout(name)*10
+    io_loop.add_timeout(time.time() + next_refr, move_to_dying(app, name))
+    if app.connected:
+        logger.info("Reconnect %s %s succesfully. Next refresh after %f"\
+                         % (app.servicename, "%s:%s" % app.service_endpoint, next_refr))
+    else:
+        logger.warning("Unable to reconnect %s" % name)
+
+
+def move_to_dying(app, name):
+    def wrapper():
+        active_apps = len(cache[name])
+        if active_apps < tornado.options.options.count/2:
+            return
+        logger.info("Move to dying %s %s from pool with active %d" % (app.servicename, "%s:%s" % app.service_endpoint, active_apps))
+        # Move service to sandbox for waiting current sessions
+        try:
+            inx = cache[name].index(app)
+            # To avoid gc collect
+            dying[name].append(cache[name].pop(inx))
+        except ValueError as err:
+            logger.error("Broken cache")
+            return
+
+        io_loop.add_timeout(time.time() + get_timeout(name), partial(reconnector, app, name))
+    return wrapper
+
+
+def get_service(name):
+    if len(cache[name]) < SERVICE_CACHE_COUNT - len(dying[name]):
+        try:
+            created = [Service(name, raise_reconnect_failure=False)
+                                for _ in xrange(0, 10 - len(cache[name]))]
+            [logger.info("Connect to app: %s endpoint %s " % (app.servicename, "%s:%s" % app.service_endpoint))
+                                    for app in created]
+            cache[name].extend(created)
+            for app in created:
+                io_loop.add_timeout(time.time() + random.random() * REFRESH_PERIOD, move_to_dying(app, name))
+        except Exception as err:
+            logger.error(str(err))
+            return None
+    chosen = random.choice(cache[name])
+    if chosen.connected:
+        return chosen
+    else:
+        logger.warning("Service %s disconnected %s" % (chosen.servicename,
+                                                                    chosen.service_endpoint))
+        try:
+            chosen.reconnect()
+            if chosen.connected:
+                return chosen
+            else:
+                return None
+        except Exception as err:
+            return None
+
 def gen(obj):
     headers = yield
     chunk = headers.get()
-    for header, value in chunk['headers']:
-        obj.add_header(header, value)
-    obj.set_status(chunk['code'])
     body = yield
-    obj.write(body.get())
+    message = body.get()
+    res = "HTTP/1.1 %s OK\r\n%s\r\nContent-Length: %d\r\n\r\n%s" % (
+        chunk["code"],
+        '\r\n'.join(':'.join(item) for item in chunk['headers']),
+        len(message),
+        message)
+    obj.write(res)
     obj.finish()
 
 def pack_httprequest(request):
@@ -187,108 +265,40 @@ def pack_httprequest(request):
     d['request'] = dict((param, value[0]) for param, value in request.arguments.iteritems())
     return d
 
-def answer_timeout(request_obj):
-    if not request_obj._finished:
-        request_obj.clear()
-        request_obj.send_error(status_code=504)
 
-DEFAULT_TIMEOUT=1
-def get_timeout(app_name):
-    """dummy"""
-    return DEFAULT_TIMEOUT
+def handle_request(request):
+    match = URL_REGEX.match(request.path)
+    if match is None:
+        message = "Invelid url"
+        request.write("HTTP/1.1 404 Not found\r\nContent-Length: %d\r\n\r\n%s" % (
+                 len(message), message))
+        return
 
-def move_to_dying(cls, app, name):
-    def wrapper():
-        active_apps = len(cls.cache[name])
-        if active_apps < tornado.options.options.count/2:
-            return
-        logger.info("Move to dying %s %s from pool with active %d" % (app.servicename, "%s:%s" % app.service_endpoint, active_apps))
-        # Move service to sandbox for waiting current sessions
-        try:
-            inx = cls.cache[name].index(app)
-            # To avoid gc collect
-            cls.dying[name].append(cls.cache[name].pop(inx))
-        except ValueError as err:
-            logger.error("Broken cache")
-            return
+    name, event = match.groups()
+    if name == '' or event == '':
+        message = "Invelid request"
+        request.write("HTTP/1.1 404 Not found\r\nContent-Length: %d\r\n\r\n%s" % (
+                 len(message), message))
+        return
 
-        cls.io_loop.add_timeout(time.time() + get_timeout(name), partial(reconnector, cls, app, name))
-    return wrapper
-
-def reconnector(cls, app, name):
-    try:
-        logger.info("Try reconnect %s %s" % (app.servicename, "%s:%s" % app.service_endpoint))
-        app.reconnect()
-        cls.dying[name].remove(app)
-    except Exception as err:
-        logger.error("Unable to reconnect %s, because %s" % (name, str(err)))
-    cls.cache[name].append(app)
-    next_refr = random.random() * REFRESH_PERIOD + get_timeout(name)*10
-    cls.io_loop.add_timeout(time.time() + next_refr, move_to_dying(cls, app, name))
-    logger.info("Reconnect %s %s succesfully. Next refresh after %f" % (app.servicename, "%s:%s" % app.service_endpoint, next_refr))
-
-class BasicHandler(web.RequestHandler):
-
-    cache = defaultdict(list)
-    dying = defaultdict(list)
-    io_loop = ioloop.IOLoop.instance()
-
-    def get_service(self, name):
-        if len(self.cache[name]) < tornado.options.options.count - len(self.dying[name]):
-            try:
-                created = [Service(name, raise_reconnect_failure=False)
-                                    for _ in xrange(0, tornado.options.options.count - len(self.cache[name]))]
-                [logger.info("Connect to app: %s endpoint %s " % (app.servicename, "%s:%s" % app.service_endpoint))
-                                    for app in created]
-                self.cache[name].extend(created)
-                for app in created:
-                    self.io_loop.add_timeout(time.time() + random.random() * REFRESH_PERIOD, move_to_dying(BasicHandler, app, name))
-            except Exception as err:
-                logger.error(str(err))
-                return None
-        chosen = random.choice(self.cache[name])
-        if chosen.connected:
-            return chosen
-        else:
-            logger.warning("Service %s disconnected %s" % (chosen.servicename,
-                                                                    chosen.service_endpoint))
-            try:
-                chosen.reconnect()
-                if chosen.connected:
-                    return chosen
-                else:
-                    return None
-            except Exception as err:
-                return None
-
-    @web.asynchronous
-    def get(self, name, event):
-        s = self.get_service(name)
-        if s is None:
-            self.send_error(status_code=404)
-        else:
-            timeout_caller = self.io_loop.add_timeout(time.time() + get_timeout(name),\
-                                                                    partial(answer_timeout, self))
-            data = pack_httprequest(self.request)
-            fut = s.invoke(event, msgpack.packb(data))
-            g = gen(self)
-            g.next()
-            fut.then(g.send).run()
-
-    @web.asynchronous
-    def post(self, name, event):
-        self.get(name, event)
-
-
+    s = get_service(name)
+    if s is None:
+        message = "Current application %s is unavailable" % name
+        request.write("HTTP/1.1 404 Not found\r\nContent-Length: %d\r\n\r\n%s" % (
+                 len(message), message))
+        return
+        
+    data = pack_httprequest(request)
+    fut = s.invoke(event, msgpack.packb(data))
+    g = gen(request)
+    g.next()
+    fut.then(g.send).run()
 
 
 def main():
-    application = web.Application([
-        (r"/([^/]*)/([^/]*)", BasicHandler),
-        ])
-    application.listen(tornado.options.options.port, no_keep_alive=False)
-    io_loop = ioloop.IOLoop.instance()
-    io_loop.start()
+    http_server = tornado.httpserver.HTTPServer(handle_request, no_keep_alive=False)
+    http_server.listen(tornado.options.options.port)
+    tornado.ioloop.IOLoop.instance().start()
 
 if __name__ == "__main__":
     if tornado.options.options.daemon:
