@@ -238,7 +238,7 @@ def get_service(name):
         return chosen
     else:
         logger.warning("Service %s disconnected %s" % (chosen.servicename,
-                                                                    chosen.service_endpoint))
+                                                        chosen.service_endpoint))
         try:
             chosen.reconnect()
             if chosen.connected:

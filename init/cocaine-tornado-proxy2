@@ -45,7 +45,7 @@ do_start()
        PIDFILE=$PID_PATH/tornado-proxy.$i 
        PORT=$(($START_PORT+$i))
        echo -n "Start $i on port $PORT and pid $PIDFILE "
-       cocaine-tornado-proxy2 --daemon --port=$PORT --user=$USER --pidfile=$PIDFILE --logging=$LOGLEVEL --log_file_prefix=$LOG --count=$APPS_COUNT start
+       ulimit -n 65000; cocaine-tornado-proxy2 --daemon --port=$PORT --user=$USER --pidfile=$PIDFILE --logging=$LOGLEVEL --log_file_prefix=$LOG --count=$APPS_COUNT start
        if [ $? -ne 0 ]; 
        then
              echo "FAIL"
