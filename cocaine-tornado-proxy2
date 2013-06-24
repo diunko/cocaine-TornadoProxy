@@ -3,6 +3,7 @@
 import random
 import logging
 import atexit
+import pwd
 import time
 import re
 import os
@@ -19,20 +20,23 @@ import msgpack
 
 from cocaine.services import Service
 
-SERVICE_CACHE_COUNT = 5
-REFRESH_PERIOD = 10
 logger = logging.getLogger()
+
 
 class Daemon(object):
 
-    def __init__(self, pidfile, stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
+    def __init__(self, pidfile, userid=None, stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
         self.stdin = stdin
         self.stdout = stdout
         self.stderr = stderr
         self.pidfile = pidfile
+        self.userid = userid
 
     def daemonize(self):
         """Double-fork magic"""
+        if self.userid:
+            uid = pwd.getpwnam(self.userid).pw_uid
+            os.seteuid(uid)
         try:
             pid = os.fork()
             if pid > 0:
@@ -46,6 +50,7 @@ class Daemon(object):
         os.umask(0)
 
         # Second fork
+        
         try:
             pid = os.fork()
             if pid > 0:
@@ -87,7 +92,7 @@ class Daemon(object):
             pid = None
 
         if pid:
-            msg = "pidfile %s has been already existed. Exit.\n"
+            msg = "pidfile %s exists. Exit.\n"
             sys.stderr.write(msg % self.pidfile)
             sys.exit(1)
 
@@ -106,7 +111,7 @@ class Daemon(object):
             pid = None
 
         if not pid:
-            msg = "pidfile %s doesnot exist. Exit.\n"
+            msg = "pidfile %s doesn't exist. Exit.\n"
             sys.stderr.write(msg % self.pidfile)
             sys.exit(1)
 
@@ -120,7 +125,7 @@ class Daemon(object):
             if err.find("No such process") > 0:
                 if os.path.exists(self.pidfile):
                     os.remove(self.pidfile)
-                sys.stdout.write("Process %d has been stoped succefully\n" % pid)
+                sys.stdout.write("Process %d stoped succefully\n" % pid)
             else:
                 print str(err)
                 sys.exit(1)
@@ -154,10 +159,16 @@ class Daemon(object):
     def run(self, *args):
         pass
 
+
+SERVICE_CACHE_COUNT = 5
+REFRESH_PERIOD = 10
+DEFAULT_USER = "cocaine"
+
 tornado.options.define("port", default=8088, type=int, help="listening port number")
 tornado.options.define("count", default=SERVICE_CACHE_COUNT, type=int, help="count of instances per service")
 tornado.options.define("daemon", default=False, type=bool, help="daemonize")
 tornado.options.define("pidfile", default="/var/run/tornado", type=str, help="pidfile")
+tornado.options.define("user", default=DEFAULT_USER, type=str, help="Set process's username")
 actions = tornado.options.parse_command_line()
 
 
@@ -314,19 +325,17 @@ def main():
 
 if __name__ == "__main__":
     if tornado.options.options.daemon:
+        d = Daemon(tornado.options.options.pidfile,
+                    tornado.options.options.user)
         if "start" in actions:
-            d = Daemon(tornado.options.options.pidfile)
             d.run = main
             d.start()
         elif "stop" in actions:
-            d = Daemon(tornado.options.options.pidfile)
             d.stop()
         elif "restart" in actions:
-            d = Daemon(tornado.options.options.pidfile)
             d.run = main
             d.restart()
         elif "status" in actions:
-            d = Daemon(tornado.options.options.pidfile)
             d.status()
         else:
             print("start|stop|restart|status")
