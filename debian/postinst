@@ -1,0 +1,13 @@
+#!/bin/bash
+
+
+LOGDIR="/var/log/cocainetornado"
+
+if [ ! -d "$LOGDIR" ]; then
+    mkdir -p $LOGDIR
+fi
+
+chown cocaine $LOGDIR
+
+
+#DEBHELPER#

@@ -1,3 +1,12 @@
+cocaine-tornado-proxy (0.10.5-8) lucid; urgency=low
+
+  * Return 501 if eventhandler is unavailable.
+  * Remove /name/event from uri, which we send to application in request
+  * Create directory for logs in postinst.
+  * Convert http statuses with httplib  
+
+ -- Anton Tyurin <noxiouz@yandex-team.ru>  Tue, 25 Jun 2013 00:14:29 +0400
+
 cocaine-tornado-proxy (0.10.5-7) lucid; urgency=low
 
   * Fix headers

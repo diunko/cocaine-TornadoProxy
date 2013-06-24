@@ -26,7 +26,7 @@ USER="cocaine"
 START_PORT=8080
 TORNADO_COUNT=5 # Count of tornado processes
 APPS_COUNT=10 # Count of the same applications in one tornado process 
-LOG="/var/log/tornado.log"
+LOG="/var/log/cocainetornado/tornado.log"
 LOGLEVEL="info" # debug|info|warning|error|none
 
 if [ $2 ]; then
