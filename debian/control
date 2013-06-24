@@ -9,7 +9,7 @@ Homepage: https://github.com/noxiouz/cocaine-TornadoProxy
 
 Package: cocaine-tornado-proxy
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends},
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${python:Depends},
  python-tornado,
  python-msgpack | msgpack-python,
  cocaine-framework-python (>=0.10.4-6)

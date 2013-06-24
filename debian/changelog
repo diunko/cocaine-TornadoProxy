@@ -1,3 +1,10 @@
+cocaine-tornado-proxy (0.10.5-7) lucid; urgency=low
+
+  * Fix headers
+  * Run proxy with specific user
+
+ -- Anton Tyurin <noxiouz@yandex-team.ru>  Mon, 24 Jun 2013 17:23:51 +0400
+
 cocaine-tornado-proxy (0.10.5-6) lucid; urgency=low
 
   * add alternative implementation 
