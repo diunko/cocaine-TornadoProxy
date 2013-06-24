@@ -172,6 +172,7 @@ def get_timeout(app_name):
     """dummy"""
     return DEFAULT_TIMEOUT
 
+
 def reconnector(app, name):
     try:
         logger.info("Try reconnect %s %s" % (app.servicename, "%s:%s" % app.service_endpoint))
@@ -236,18 +237,25 @@ def get_service(name):
         except Exception as err:
             return None
 
+
 def gen(obj):
     headers = yield
     chunk = headers.get()
     body = yield
     message = body.get()
-    res = "HTTP/1.1 %s OK\r\n%s\r\nContent-Length: %d\r\n\r\n%s" % (
-        chunk["code"],
-        '\r\n'.join(':'.join(item) for item in chunk['headers']),
-        len(message),
-        message)
-    obj.write(res)
+    res = "%(VERSION)s %(CODE)s %(STATUS)s\r\n%(HEADERS)s\r\n%(BODY)s" 
+    headers_from_app = '\r\n'.join(': '.join(_) for _ in chunk['headers'])
+    if headers_from_app:
+        headers = headers_from_app + '\r\nContent-Length: %d\r\n' % len(message)
+    else:
+        headers = 'Content-Length: %d\r\n' % len(message)
+    obj.write(res % {"VERSION" : obj.version,
+                     "CODE" : chunk["code"],
+                     "STATUS" : "ok",
+                     "HEADERS"  : headers,
+                     "BODY" : message })
     obj.finish()
+
 
 def pack_httprequest(request):
     d = dict()
@@ -270,22 +278,25 @@ def handle_request(request):
     match = URL_REGEX.match(request.path)
     if match is None:
         message = "Invelid url"
-        request.write("HTTP/1.1 404 Not found\r\nContent-Length: %d\r\n\r\n%s" % (
-                 len(message), message))
+        request.write("%s 404 Not found\r\nContent-Length: %d\r\n\r\n%s" % (
+                 request.version, len(message), message))
+        request.finish()
         return
 
     name, event = match.groups()
     if name == '' or event == '':
         message = "Invelid request"
-        request.write("HTTP/1.1 404 Not found\r\nContent-Length: %d\r\n\r\n%s" % (
-                 len(message), message))
+        request.write("%s 404 Not found\r\nContent-Length: %d\r\n\r\n%s" % (
+                request.version, len(message), message))
+        request.finish()
         return
 
     s = get_service(name)
     if s is None:
         message = "Current application %s is unavailable" % name
-        request.write("HTTP/1.1 404 Not found\r\nContent-Length: %d\r\n\r\n%s" % (
-                 len(message), message))
+        request.write("%s 404 Not found\r\nContent-Length: %d\r\n\r\n%s" % (
+                request.version, len(message), message))
+        request.finish()
         return
         
     data = pack_httprequest(request)
@@ -299,6 +310,7 @@ def main():
     http_server = tornado.httpserver.HTTPServer(handle_request, no_keep_alive=False)
     http_server.listen(tornado.options.options.port)
     tornado.ioloop.IOLoop.instance().start()
+
 
 if __name__ == "__main__":
     if tornado.options.options.daemon:

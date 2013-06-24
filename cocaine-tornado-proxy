@@ -12,7 +12,7 @@ from collections import defaultdict
 
 from tornado import web
 from tornado import ioloop
-from tornado.log import LogFormatter
+#from tornado.log import LogFormatter
 import tornado.options
 import msgpack
 
