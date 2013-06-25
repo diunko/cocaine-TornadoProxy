@@ -10,30 +10,22 @@
 #                    placed in /etc/init.d.
 ### END INIT INFO
 
-# Author: Foo Bar <foobar@baz.org>
-#
-# Please remove the "Author" lines above and replace them
-# with your own name if you copy and modify this script.
+# Author: Anton Tyurin <noxiouz@yandex.ru>
 
 # Do NOT "set -e"
 
 # PATH should only include /usr/* if it runs after the mountnfs.sh script
 PATH=/sbin:/usr/sbin:/bin:/usr/bin
-DESC="cocaine-tornado-proxy"
-NAME=cocaine-tornado-proxy
 PID_PATH=/var/run
+USER="cocaine"
 START_PORT=8080
 TORNADO_COUNT=5 # Count of tornado processes
-APPS_COUNT=10 # Count of the same applications in one tornado process 
-LOG="/var/log/tornado.log"
+LOG=/var/log/cocainetornado/tornado.log
 LOGLEVEL="info" # debug|info|warning|error|none
+CONFIG=/etc/cocaine/cocaine-tornado-proxy.conf
 
 if [ $2 ]; then
     TORNADO_COUNT=$2
-fi
-
-if [ $3 ]; then
-    APPS_COUNT=$3
 fi
 
 do_start()
@@ -44,7 +36,7 @@ do_start()
        PIDFILE=$PID_PATH/tornado-proxy.$i 
        PORT=$(($START_PORT+$i))
        echo -n "Start $i on port $PORT and pid $PIDFILE "
-       cocaine-tornado-proxy --daemon --port=$PORT --pidfile=$PIDFILE --logging=$LOGLEVEL --log_file_prefix=$LOG --count=$APPS_COUNT start
+       ulimit -n 65000; cocaine-tornado-proxy --daemon --port=$PORT --user=$USER --pidfile=$PIDFILE --logging=$LOGLEVEL --log_file_prefix=$LOG --config=$CONFIG start
        if [ $? -ne 0 ]; 
        then
              echo "FAIL"

@@ -3,6 +3,7 @@ import pwd
 import time
 import os
 import sys
+import json
 from functools import partial
 from signal import SIGTERM
 
@@ -108,7 +109,7 @@ class Daemon(object):
             if err.find("No such process") > 0:
                 if os.path.exists(self.pidfile):
                     os.remove(self.pidfile)
-                sys.stdout.write("Process %d stoped succefully\n" % pid)
+                sys.stdout.write("Process %d stoped successfully\n" % pid)
             else:
                 print str(err)
                 sys.exit(1)
@@ -141,3 +142,8 @@ class Daemon(object):
 
     def run(self, *args):
         pass
+
+def load_config(path):
+    with open(path, 'r') as cfg:
+        return json.load(cfg)
+

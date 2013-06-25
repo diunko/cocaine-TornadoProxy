@@ -9,7 +9,7 @@ setup(
     author_email="noxiouz@yandex.ru",
     packages=["cocaineproxy"],
     license="LGPLv3+",
-    scripts=['cocaine-tornado-proxy', 'cocaine-tornado-proxy2'],
-    data_files=[('/etc/init.d/',['init/cocaine-tornado-proxy']),
-                ('/etc/init.d/',['init/cocaine-tornado-proxy2'])]
+    scripts=['cocaine-tornado-proxy'],
+    data_files=[('/etc/cocaine/', ['init/cocaine-tornado-proxy.conf']),
+                ('/etc/init.d/',['init/cocaine-tornado-proxy'])]
 )
