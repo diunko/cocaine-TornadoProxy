@@ -206,7 +206,7 @@ def handle_request(request):
     try:
         s = Service(name) 
     except Exception as err:
-        log.error("Create service error %s" % str(err))
+        logger.error("Create service error %s" % str(err))
         s = None
     if s is None:
         message = "Current application %s is unavailable" % name
