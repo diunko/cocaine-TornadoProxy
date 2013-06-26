@@ -58,7 +58,7 @@ get_timeout = partial(get_timeout, TIMEOUTS, DEFAULT_TIMEOUT)
 
 def reconnector(app, name):
     try:
-        logger.info("Try reconnect %s %s" % (app.servicename, "%s:%s" % app.service_endpoint))
+        logger.info("Try to reconnect %s %s" % (app.servicename, "%s:%s" % app.service_endpoint))
         app.reconnect()
     except Exception as err:
         logger.error("Unable to reconnect %s, because %s" % (name, str(err)))
@@ -67,7 +67,7 @@ def reconnector(app, name):
     next_refr = (1 + random.random()) * REFRESH_PERIOD
     io_loop.add_timeout(time.time() + next_refr, move_to_dying(app, name))
     if app.connected:
-        logger.info("Reconnect %s %s succesfully. Next refresh after %f"\
+        logger.info("Reconnect %s %s successfully. Next refresh after %f"\
                          % (app.servicename, "%s:%s" % app.service_endpoint, next_refr))
     else:
         logger.warning("Unable to reconnect %s" % name)
@@ -114,7 +114,7 @@ def get_service(name):
         try:
             chosen.reconnect()
             if chosen.connected:
-                logger.info("Service %s reconnect succesfully" % chosen.servicename)
+                logger.info("Service %s reconnect successfully" % chosen.servicename)
                 return chosen
             else:
                 return None
@@ -202,7 +202,12 @@ def handle_request(request):
     request.uri = other
     request.path = other.partition("?")[0]
 
-    s = get_service(name)
+    #s = get_service(name)
+    try:
+        s = Service(name) 
+    except Exception as err:
+        log.error("Create service error %s" % str(err))
+        s = None
     if s is None:
         message = "Current application %s is unavailable" % name
         request.write("%s 404 Not found\r\nContent-Length: %d\r\n\r\n%s" % (

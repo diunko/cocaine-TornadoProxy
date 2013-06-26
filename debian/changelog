@@ -1,3 +1,9 @@
+cocaine-tornado-proxy (0.10.5-11) lucid; urgency=low
+
+  * remove reconnection policy 
+
+ -- Anton Tyurin <noxiouz@yandex-team.ru>  Wed, 26 Jun 2013 16:29:04 +0400
+
 cocaine-tornado-proxy (0.10.5-10) lucid; urgency=low
 
   * changle platform from any to all 
