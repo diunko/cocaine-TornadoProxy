@@ -28,7 +28,7 @@ io_loop = ioloop.IOLoop.instance()
 URL_REGEX = re.compile(r"/([^/]*)/([^/?]*)(.*)")
 
 SERVICE_CACHE_COUNT = 5
-REFRESH_PERIOD = 100
+REFRESH_PERIOD = 10
 DEFAULT_TIMEOUT = 1
 DEFAULT_USER = "cocaine"
 DEFAULT_CONFIG_PATH = '/etc/cocaine/cocaine-tornado-proxy.conf'
@@ -65,7 +65,7 @@ def reconnector(app, name):
     dying[name].remove(app)
     cache[name].append(app)
     next_refr = (1 + random.random()) * REFRESH_PERIOD
-    #io_loop.add_timeout(time.time() + next_refr, move_to_dying(app, name))
+    io_loop.add_timeout(time.time() + next_refr, move_to_dying(app, name))
     if app.connected:
         logger.info("Reconnect %s %s successfully." % (app.servicename, "%s:%s" % app.service_endpoint))
     else:
@@ -81,7 +81,7 @@ def move_to_dying(app, name):
         # Move service to sandbox for waiting current sessions
         try:
             inx = cache[name].index(app)
-            app.SENT = 0
+            #app.SENT = 0
             # To avoid gc collect
             dying[name].append(cache[name].pop(inx))
         except ValueError as err:
@@ -100,19 +100,19 @@ def get_service(name):
             [logger.info("Connect to app: %s endpoint %s " % (app.servicename, "%s:%s" % app.service_endpoint))
                                     for app in created]
             cache[name].extend(created)
-            #for app in created:
-            #    io_loop.add_timeout(time.time() + (1 + random.random()) * REFRESH_PERIOD, move_to_dying(app, name))
+            for app in created:
+                io_loop.add_timeout(time.time() + (1 + random.random()) * REFRESH_PERIOD, move_to_dying(app, name))
         except Exception as err:
             logger.error(str(err))
             return None
     chosen = random.choice(cache[name])
     if chosen.connected:
-        if hasattr(chosen, 'SENT'):
-            chosen.SENT += 1
-        else:
-            setattr(chosen, 'SENT', 0)
-        if chosen.SENT >= 1000:
-            move_to_dying(chosen, name)()
+        #if hasattr(chosen, 'SENT'):
+        #    chosen.SENT += 1
+        #else:
+        #    setattr(chosen, 'SENT', 0)
+        #if chosen.SENT >= 1000:
+        #    move_to_dying(chosen, name)()
         return chosen
 
     else:
