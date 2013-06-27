@@ -65,10 +65,9 @@ def reconnector(app, name):
     dying[name].remove(app)
     cache[name].append(app)
     next_refr = (1 + random.random()) * REFRESH_PERIOD
-    io_loop.add_timeout(time.time() + next_refr, move_to_dying(app, name))
+    #io_loop.add_timeout(time.time() + next_refr, move_to_dying(app, name))
     if app.connected:
-        logger.info("Reconnect %s %s successfully. Next refresh after %f"\
-                         % (app.servicename, "%s:%s" % app.service_endpoint, next_refr))
+        logger.info("Reconnect %s %s successfully." % (app.servicename, "%s:%s" % app.service_endpoint))
     else:
         logger.warning("Unable to reconnect %s" % name)
 
@@ -78,17 +77,18 @@ def move_to_dying(app, name):
         active_apps = len(cache[name])
         if active_apps < SERVICE_CACHE_COUNT/2:
             return
-        logger.info("Move to dying %s %s from pool with active %d" % (app.servicename, "%s:%s" % app.service_endpoint, active_apps))
+        logger.info("Move to inactive queue %s %s from pool with active %d" % (app.servicename, "%s:%s" % app.service_endpoint, active_apps))
         # Move service to sandbox for waiting current sessions
         try:
             inx = cache[name].index(app)
+            app.SENT = 0
             # To avoid gc collect
             dying[name].append(cache[name].pop(inx))
         except ValueError as err:
             logger.error("Broken cache")
             return
 
-        io_loop.add_timeout(time.time() + get_timeout(name), partial(reconnector, app, name))
+        io_loop.add_timeout(time.time() + get_timeout(name) + 1, partial(reconnector, app, name))
     return wrapper
 
 
@@ -100,14 +100,21 @@ def get_service(name):
             [logger.info("Connect to app: %s endpoint %s " % (app.servicename, "%s:%s" % app.service_endpoint))
                                     for app in created]
             cache[name].extend(created)
-            for app in created:
-                io_loop.add_timeout(time.time() + (1 + random.random()) * REFRESH_PERIOD, move_to_dying(app, name))
+            #for app in created:
+            #    io_loop.add_timeout(time.time() + (1 + random.random()) * REFRESH_PERIOD, move_to_dying(app, name))
         except Exception as err:
             logger.error(str(err))
             return None
     chosen = random.choice(cache[name])
     if chosen.connected:
+        if hasattr(chosen, 'SENT'):
+            chosen.SENT += 1
+        else:
+            setattr(chosen, 'SENT', 0)
+        if chosen.SENT >= 1000:
+            move_to_dying(chosen, name)()
         return chosen
+
     else:
         logger.warning("Service %s disconnected %s" % (chosen.servicename,
                                                         chosen.service_endpoint))
@@ -202,12 +209,12 @@ def handle_request(request):
     request.uri = other
     request.path = other.partition("?")[0]
 
-    #s = get_service(name)
-    try:
-        s = Service(name) 
-    except Exception as err:
-        logger.error("Create service error %s" % str(err))
-        s = None
+    s = get_service(name)
+    #try:
+    #    s = Service(name) 
+    #except Exception as err:
+    #    logger.error("Create service error %s" % str(err))
+    #    s = None
     if s is None:
         message = "Current application %s is unavailable" % name
         request.write("%s 404 Not found\r\nContent-Length: %d\r\n\r\n%s" % (

@@ -1,3 +1,15 @@
+cocaine-tornado-proxy (0.10.5-13) lucid; urgency=low
+
+  * version bump 
+
+ -- Anton Tyurin <noxiouz@yandex-team.ru>  Thu, 27 Jun 2013 16:26:30 +0400
+
+cocaine-tornado-proxy (0.10.5-12) lucid; urgency=low
+
+  * reconnect by count 
+
+ -- Anton Tyurin <noxiouz@yandex-team.ru>  Wed, 26 Jun 2013 20:27:00 +0400
+
 cocaine-tornado-proxy (0.10.5-11) lucid; urgency=low
 
   * remove reconnection policy 
