@@ -167,7 +167,7 @@ def pack_httprequest(request):
                   "headers" : dict(request.headers),
                   "host" : request.host,
                   "method" : request.method,
-                  "path_info" : request.path,
+                  "script_name" : request.path,
                   "query_string" : request.query,
                   "remote_addr" : request.remote_ip,
                   "url" : request.uri,
