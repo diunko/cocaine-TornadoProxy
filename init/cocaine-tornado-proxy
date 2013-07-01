@@ -19,8 +19,8 @@ PATH=/sbin:/usr/sbin:/bin:/usr/bin
 PID_PATH=/var/run
 USER="cocaine"
 START_PORT=8080
-TORNADO_COUNT=5 # Count of tornado processes
-LOG=/var/log/cocainetornado/tornado.log
+TORNADO_COUNT=5
+LOG=/var/log/cocaine-tornado/tornado.log
 LOGLEVEL="info" # debug|info|warning|error|none
 CONFIG=/etc/cocaine/cocaine-tornado-proxy.conf
 
@@ -35,8 +35,13 @@ do_start()
     do
        PIDFILE=$PID_PATH/tornado-proxy.$i 
        PORT=$(($START_PORT+$i))
-       echo -n "Start $i on port $PORT and pid $PIDFILE "
-       ulimit -n 65000; cocaine-tornado-proxy --daemon --port=$PORT --user=$USER --pidfile=$PIDFILE --logging=$LOGLEVEL --log_file_prefix=$LOG --config=$CONFIG start
+       echo -n "Start $i on port $PORT and pid $PIDFILE"
+       if [ $3 ]; then
+            ARGS=" --count=$3 --port=$PORT --user=$USER --pidfile=$PIDFILE --logging=$LOGLEVEL --log_file_prefix=$LOG --config=$CONFIG"
+       else
+            ARGS=" --port=$PORT --user=$USER --pidfile=$PIDFILE --logging=$LOGLEVEL --log_file_prefix=$LOG --config=$CONFIG"
+       fi
+       ulimit -n 65000; cocaine-tornado-proxy --daemon $ARGS start
        if [ $? -ne 0 ]; 
        then
              echo "FAIL"
