@@ -1,3 +1,9 @@
+cocaine-tornado-proxy (0.10.5-17) lucid; urgency=low
+
+  * add async reconnect 
+
+ -- Anton Tyurin <noxiouz@yandex-team.ru>  Tue, 02 Jul 2013 15:34:59 +0400
+
 cocaine-tornado-proxy (0.10.5-16) lucid; urgency=low
 
   * increase instances size in cache, when one of them is reconnecting now. 
