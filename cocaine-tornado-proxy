@@ -65,17 +65,35 @@ def reconnector(app, name):
     dying[name].remove(app)
     cache[name].append(app)
     next_refr = (1 + random.random()) * REFRESH_PERIOD
-    io_loop.add_timeout(time.time() + next_refr, move_to_dying(app, name))
+    io_loop.add_timeout(time.time() + next_refr, move_to_inactive(app, name))
     if app.connected:
         logger.info("Reconnect %s %s successfully." % (app.servicename, "%s:%s" % app.service_endpoint))
     else:
         logger.warning("Unable to reconnect %s" % name)
 
+def async_reconnect(app, name):
+    def callback(res):
+        try:
+            res.get()
+            logger.info("Reconnect %s to %s successfully." % (app.servicename, "%s:%s" % app.service_endpoint))
+        except Exception as err:
+            logger.warning("Unable to reconnect %s: %s" % (name, err))
+        finally:
+            dying[name].remove(app)
+            cache[name].append(app)
+            next_refr = (1 + random.random()) * REFRESH_PERIOD
+            io_loop.add_timeout(time.time() + next_refr, move_to_inactive(app, name))
+    try:
+        logger.info("Start asynchronous reconnect %s" % (app.servicename))
+        app.async_reconnect(callback, 1)
+    except Exception as err:
+        logger.error("Unable to reconnect %s, because %s" % (name, str(err)))
 
-def move_to_dying(app, name):
+
+def move_to_inactive(app, name):
     def wrapper():
         active_apps = len(cache[name])
-        if active_apps < SERVICE_CACHE_COUNT/2 + 1:
+        if active_apps < SERVICE_CACHE_COUNT:
             return
         logger.info("Move to inactive queue %s %s from pool with active %d" % (app.servicename, "%s:%s" % app.service_endpoint, active_apps))
         # Move service to sandbox for waiting current sessions
@@ -87,28 +105,28 @@ def move_to_dying(app, name):
             logger.error("Broken cache")
             return
 
-        if active_apps - 1 < SERVICE_CACHE_COUNT:
-            try:
-                new_app = Service(name)
-                cache[name].append(new_app)
-                io_loop.add_timeout(time.time() + (1 + random.random()) * REFRESH_PERIOD, move_to_dying(new_app, name))
-            except Exception as err:
-                logger.error(str(err))
+        #if active_apps - 1 < SERVICE_CACHE_COUNT:
+        #    try:
+        #        new_app = Service(name)
+        #        cache[name].append(new_app)
+        #        io_loop.add_timeout(time.time() + (1 + random.random()) * REFRESH_PERIOD, move_to_inactive(new_app, name))
+        #    except Exception as err:
+        #        logger.error(str(err))
 
-        io_loop.add_timeout(time.time() + get_timeout(name) + 1, partial(reconnector, app, name))
+        io_loop.add_timeout(time.time() + get_timeout(name) + 1, partial(async_reconnect, app, name))
     return wrapper
 
 
 def get_service(name):
-    if len(cache[name]) < SERVICE_CACHE_COUNT - len(dying[name]):
+    if len(cache[name]) < SERVICE_CACHE_COUNT * 1.5 - len(dying[name]):
         try:
             created = [Service(name)
-                                for _ in xrange(0, SERVICE_CACHE_COUNT - len(cache[name]))]
+                                for _ in xrange(0, SERVICE_CACHE_COUNT * 1.5 - len(cache[name]))]
             [logger.info("Connect to app: %s endpoint %s " % (app.servicename, "%s:%s" % app.service_endpoint))
                                     for app in created]
             cache[name].extend(created)
             for app in created:
-                io_loop.add_timeout(time.time() + (1 + random.random()) * REFRESH_PERIOD, move_to_dying(app, name))
+                io_loop.add_timeout(time.time() + (1 + random.random()) * REFRESH_PERIOD, move_to_inactive(app, name))
         except Exception as err:
             logger.error(str(err))
             return None
