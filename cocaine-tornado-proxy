@@ -1,4 +1,22 @@
 #!/usr/bin/env python
+#
+# Copyright (c) 2012 Tyurin Anton noxiouz@yandex.ru
+#
+# This file is part of cocaine-tornado-proxy.
+#
+# cocaine-tornado-proxy is free software; you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+#
+# cocaine-tornado-proxy is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
 
 import random
 import logging
@@ -22,9 +40,11 @@ from cocaine.exceptions import CocaineError
 
 from cocaineproxy import Daemon
 from cocaineproxy import load_config
+from cocaineproxy import coroutine
 
 logger = logging.getLogger()
 io_loop = ioloop.IOLoop.instance()
+
 URL_REGEX = re.compile(r"/([^/]*)/([^/?]*)(.*)")
 
 SERVICE_CACHE_COUNT = 5
@@ -41,14 +61,18 @@ tornado.options.define("count", default=None, type=int, help="count of instances
 tornado.options.define("config", default=DEFAULT_CONFIG_PATH, type=str, help="path to configuration file")
 actions = tornado.options.parse_command_line()
 
-config = load_config(tornado.options.options.config)
+try:
+    config = load_config(tornado.options.options.config)
+except Exception as err:
+    logger.error("Unable to load config %s. %s" % (tornado.options.options.config, str(err)))
+    exit(1)
 
 SERVICE_CACHE_COUNT = tornado.options.options.count or config.get("instances") or SERVICE_CACHE_COUNT
 REFRESH_PERIOD = config.get("refresh_timeout") or REFRESH_PERIOD
 TIMEOUTS = config.get("timeouts", {})
 
 cache = defaultdict(list) # active applications
-dying = defaultdict(list) # application, whish wait for reconnection
+dying = defaultdict(list) # application, which are waiting for reconnection
 
 
 def get_timeout(cfg, default, app_name):
@@ -56,6 +80,7 @@ def get_timeout(cfg, default, app_name):
 get_timeout = partial(get_timeout, TIMEOUTS, DEFAULT_TIMEOUT)
 
 
+# Disabled now - use async_reconnect
 def reconnector(app, name):
     try:
         logger.info("Try to reconnect %s %s" % (app.servicename, "%s:%s" % app.service_endpoint))
@@ -71,6 +96,7 @@ def reconnector(app, name):
     else:
         logger.warning("Unable to reconnect %s" % name)
 
+
 def async_reconnect(app, name):
     def callback(res):
         try:
@@ -82,6 +108,7 @@ def async_reconnect(app, name):
             dying[name].remove(app)
             cache[name].append(app)
             next_refr = (1 + random.random()) * REFRESH_PERIOD
+            logger.info("Next update after %d second" % next_refr)
             io_loop.add_timeout(time.time() + next_refr, move_to_inactive(app, name))
     try:
         logger.info("Start asynchronous reconnect %s" % (app.servicename))
@@ -105,23 +132,16 @@ def move_to_inactive(app, name):
             logger.error("Broken cache")
             return
 
-        #if active_apps - 1 < SERVICE_CACHE_COUNT:
-        #    try:
-        #        new_app = Service(name)
-        #        cache[name].append(new_app)
-        #        io_loop.add_timeout(time.time() + (1 + random.random()) * REFRESH_PERIOD, move_to_inactive(new_app, name))
-        #    except Exception as err:
-        #        logger.error(str(err))
-
         io_loop.add_timeout(time.time() + get_timeout(name) + 1, partial(async_reconnect, app, name))
     return wrapper
 
 
+SPOOL_SIZE = int(SERVICE_CACHE_COUNT * 1.5) 
 def get_service(name):
-    if len(cache[name]) < SERVICE_CACHE_COUNT * 1.5 - len(dying[name]):
+    if len(cache[name]) < SPOOL_SIZE - len(dying[name]):
         try:
             created = [Service(name)
-                                for _ in xrange(0, SERVICE_CACHE_COUNT * 1.5 - len(cache[name]))]
+                                for _ in xrange(0, SPOOL_SIZE - len(cache[name]))]
             [logger.info("Connect to app: %s endpoint %s " % (app.servicename, "%s:%s" % app.service_endpoint))
                                     for app in created]
             cache[name].extend(created)
@@ -149,14 +169,16 @@ def get_service(name):
 
 
 TEMPLATE = "%(VERSION)s %(CODE)d %(STATUS)s\r\n%(HEADERS)s\r\n%(BODY)s" 
-def gen(obj):
+@coroutine
+def process(obj):
     try:
         headers = yield
         chunk = headers.get()
         body = yield
         message = body.get()
     except ServiceError as err:
-        message = "Eventhandler is unavailable for this event"
+        logger.error(str(err))
+        message = "Application error: %s" % str(err.msg)
         response_data = TEMPLATE % { "VERSION" : obj.version,
                          "CODE" : 501,
                          "STATUS" : httplib.responses[501],
@@ -196,6 +218,8 @@ def pack_httprequest(request):
     d['request'] = dict((param, value[0]) for param, value in request.arguments.iteritems())
     return d
 
+
+# Disabled now
 def on_deadline_response(response, req_uri):
     if response._finish_time is None:
         logger.error("Deadline has reached for %s" % req_uri)
@@ -203,6 +227,7 @@ def on_deadline_response(response, req_uri):
         response.write("%s 504 Gateway Timeout\r\nContent-Length: %d\r\n\r\n%s" % (
                  response.version, len(message), message))
         response.finish()
+
 
 def handle_request(request):
     match = URL_REGEX.match(request.uri)
@@ -221,7 +246,7 @@ def handle_request(request):
                 request.version, len(message), message))
         request.finish()
         return
-    #on_deadline = partial(on_deadline_response, request, request.uri)
+
     # Drop from query appname and event's name
     if not other.startswith('/'):
         other = "/%s" % other
@@ -238,14 +263,12 @@ def handle_request(request):
         
     data = pack_httprequest(request)
     fut = s.enqueue(event, msgpack.packb(data))
-    #io_loop.add_timeout(time.time() + get_timeout(name), on_deadline)
-    g = gen(request)
-    g.next()
-    fut.then(g.send).run()
+    g = process(request)
+    fut.then(g.send)
 
 
 def main():
-    http_server = tornado.httpserver.HTTPServer(handle_request, no_keep_alive=False)
+    http_server = tornado.httpserver.HTTPServer(handle_request, no_keep_alive=False, xheaders=True)
     http_server.listen(tornado.options.options.port)
     tornado.ioloop.IOLoop.instance().start()
 

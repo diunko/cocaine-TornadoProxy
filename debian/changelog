@@ -1,3 +1,15 @@
+cocaine-tornado-proxy (0.10.5-19) lucid; urgency=low
+
+  * log aplication errors 
+
+ -- Anton Tyurin <noxiouz@yandex-team.ru>  Tue, 02 Jul 2013 18:25:09 +0400
+
+cocaine-tornado-proxy (0.10.5-18) lucid; urgency=low
+
+  * xheaders=True 
+
+ -- Anton Tyurin <noxiouz@yandex-team.ru>  Tue, 02 Jul 2013 17:34:43 +0400
+
 cocaine-tornado-proxy (0.10.5-17) lucid; urgency=low
 
   * add async reconnect 

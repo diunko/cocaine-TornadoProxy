@@ -143,7 +143,15 @@ class Daemon(object):
     def run(self, *args):
         pass
 
+
 def load_config(path):
     with open(path, 'r') as cfg:
         return json.load(cfg)
 
+
+def coroutine(func):
+    def start(*args,**kwargs):
+        cr = func(*args,**kwargs)
+        cr.next()
+        return cr
+    return start
