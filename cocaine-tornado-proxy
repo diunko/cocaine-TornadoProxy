@@ -83,7 +83,7 @@ get_timeout = partial(get_timeout, TIMEOUTS, DEFAULT_TIMEOUT)
 # Disabled now - use async_reconnect
 def reconnector(app, name):
     try:
-        logger.info("Try to reconnect %s %s" % (app.servicename, "%s:%s" % app.service_endpoint))
+        logger.info("Try to reconnect %s %s" % (app.servicename, "%s:%s" % app.service_endpoint[:]))
         app.reconnect()
     except Exception as err:
         logger.error("Unable to reconnect %s, because %s" % (name, str(err)))
@@ -92,7 +92,7 @@ def reconnector(app, name):
     next_refr = (1 + random.random()) * REFRESH_PERIOD
     io_loop.add_timeout(time.time() + next_refr, move_to_inactive(app, name))
     if app.connected:
-        logger.info("Reconnect %s %s successfully." % (app.servicename, "%s:%s" % app.service_endpoint))
+        logger.info("Reconnect %s %s successfully." % (app.servicename, "%s:%s" % app.service_endpoint[:]))
     else:
         logger.warning("Unable to reconnect %s" % name)
 
@@ -101,14 +101,14 @@ def async_reconnect(app, name):
     def callback(res):
         try:
             res.get()
-            logger.info("Reconnect %s to %s successfully." % (app.servicename, "%s:%s" % app.service_endpoint))
+            logger.info("Reconnect %s %d to %s successfully." % (app.servicename, id(app), "%s:%s" % app.service_endpoint[:]))
         except Exception as err:
             logger.warning("Unable to reconnect %s: %s" % (name, err))
         finally:
             dying[name].remove(app)
             cache[name].append(app)
             next_refr = (1 + random.random()) * REFRESH_PERIOD
-            logger.info("Next update after %d second" % next_refr)
+            logger.info("Next update %d after %d second" % (id(app), next_refr))
             io_loop.add_timeout(time.time() + next_refr, move_to_inactive(app, name))
     try:
         logger.info("Start asynchronous reconnect %s" % (app.servicename))
@@ -160,7 +160,7 @@ def get_service(name):
         try:
             chosen.reconnect()
             if chosen.connected:
-                logger.info("Service %s reconnect successfully" % chosen.servicename)
+                logger.info("Service %s has reconnected successfully" % chosen.servicename)
                 return chosen
             else:
                 return None
