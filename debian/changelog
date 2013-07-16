@@ -1,3 +1,9 @@
+cocaine-tornado-proxy (0.10.5-20) lucid; urgency=low
+
+  * add /info 
+
+ -- Anton Tyurin <noxiouz@yandex-team.ru>  Tue, 16 Jul 2013 16:21:57 +0400
+
 cocaine-tornado-proxy (0.10.5-19) lucid; urgency=low
 
   * log aplication errors 
