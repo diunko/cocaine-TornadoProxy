@@ -228,11 +228,26 @@ def on_deadline_response(response, req_uri):
                  response.version, len(message), message))
         response.finish()
 
+def generate_info():
+    msg = "ACTIVE SERVICES\n"
+    for k, v in cache.iteritems():
+       msg += "%s\n%s\n\n" % (k.upper(), '\n'.join("%s %d %s %s" % (_.servicename, id(_), '%s:%d' % _.service_endpoint[:], _.connected) for _ in v))
+    msg += "\nINACTIVE SERVICES\n"
+    for k, v in dying.iteritems():
+       msg += "%s\n%s\n\n" % (k.upper(), '\n'.join("%s %s %s" % (_.servicename, '%s:%d' % _.service_endpoint[:], _.connected) for _ in v))
+    return msg
 
 def handle_request(request):
     match = URL_REGEX.match(request.uri)
 
     if match is None:
+        if request.path == "/info":
+            message = generate_info()
+            request.write("%s 200 OK\r\nContent-Length: %d\r\n\r\n%s" % (
+                 request.version, len(message), message))
+            request.finish()
+            return
+
         message = "Invalid url"
         request.write("%s 404 Not found\r\nContent-Length: %d\r\n\r\n%s" % (
                  request.version, len(message), message))
