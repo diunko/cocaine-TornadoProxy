@@ -1,3 +1,11 @@
+cocaine-tornado-proxy (0.10.5-22) lucid; urgency=low
+
+  * add information about fd and poll events in /info 
+  * fix bug with frozen unconnected services in inactive queue
+  * validate fd of service conenction (for debug only)
+
+ -- Anton Tyurin <noxiouz@yandex-team.ru>  Thu, 18 Jul 2013 18:02:18 +0400
+
 cocaine-tornado-proxy (0.10.5-20) lucid; urgency=low
 
   * add /info 

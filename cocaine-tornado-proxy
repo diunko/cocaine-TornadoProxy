@@ -25,6 +25,7 @@ import re
 import os
 import sys
 import httplib
+import traceback
 from functools import partial
 from collections import defaultdict
 
@@ -114,7 +115,8 @@ def async_reconnect(app, name):
         logger.info("Start asynchronous reconnect %s" % (app.servicename))
         app.async_reconnect(callback, 1)
     except Exception as err:
-        logger.error("Unable to reconnect %s, because %s" % (name, str(err)))
+        logger.exception("Unable to reconnect %s, because %s" % (name, str(err)))
+        dying[name].remove(app)
 
 
 def move_to_inactive(app, name):
@@ -152,14 +154,23 @@ def get_service(name):
             return None
     chosen = random.choice(cache[name])
     if chosen.connected:
+        try:
+            fd = chosen.pipe.sock.fileno()
+            chosen.loop._fd_events[fd]
+        except Exception as err:
+            logger.exception("Wrong fd or missing poll event")
         return chosen
-
     else:
         logger.warning("Service %s disconnected %s" % (chosen.servicename,
                                                         chosen.service_endpoint))
         try:
             chosen.reconnect()
             if chosen.connected:
+                try:
+                    fd = chosen.pipe.sock.fileno()
+                    chosen.loop._fd_events[fd]
+                except Exception as err:
+                    logger.exception("Wrong fd or missing poll event")
                 logger.info("Service %s has reconnected successfully" % chosen.servicename)
                 return chosen
             else:
@@ -231,10 +242,15 @@ def on_deadline_response(response, req_uri):
 def generate_info():
     msg = "ACTIVE SERVICES\n"
     for k, v in cache.iteritems():
-       msg += "%s\n%s\n\n" % (k.upper(), '\n'.join("%s %d %s %s" % (_.servicename, id(_), '%s:%d' % _.service_endpoint[:], _.connected) for _ in v))
+        msg += "%s\n%s\n\n" % (k.upper(), '\n'.join("%s %d %s %s %d %s" % (_.servicename, id(_),
+                                                                           '%s:%d' % _.service_endpoint[:],
+                                                                           _.connected,
+                                                                           _.pipe.fileno(),
+                                                                           str(_.loop._fd_events)
+                                                                           ) for _ in v))
     msg += "\nINACTIVE SERVICES\n"
     for k, v in dying.iteritems():
-       msg += "%s\n%s\n\n" % (k.upper(), '\n'.join("%s %s %s" % (_.servicename, '%s:%d' % _.service_endpoint[:], _.connected) for _ in v))
+        msg += "%s\n%s\n\n" % (k.upper(), '\n'.join("%s %d %s %s" % (_.servicename, id(_), '%s:%d' % _.service_endpoint[:], _.connected) for _ in v))
     return msg
 
 def handle_request(request):
