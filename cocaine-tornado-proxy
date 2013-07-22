@@ -158,7 +158,9 @@ def get_service(name):
             fd = chosen.pipe.sock.fileno()
             chosen.loop._fd_events[fd]
         except Exception as err:
-            logger.exception("Wrong fd or missing poll event")
+            logger.exception("Wrong fd or missing poll event, so remove this service")
+            cache[name].remove(chosen)
+            return get_service(name)
         return chosen
     else:
         logger.warning("Service %s disconnected %s" % (chosen.servicename,
@@ -170,7 +172,9 @@ def get_service(name):
                     fd = chosen.pipe.sock.fileno()
                     chosen.loop._fd_events[fd]
                 except Exception as err:
-                    logger.exception("Wrong fd or missing poll event")
+                    logger.exception("Wrong fd or missing poll event, so remove this service")
+                    cache[name].remove(chosen)
+                    return get_service(name)
                 logger.info("Service %s has reconnected successfully" % chosen.servicename)
                 return chosen
             else:

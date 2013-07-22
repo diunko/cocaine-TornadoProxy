@@ -1,3 +1,9 @@
+cocaine-tornado-proxy (0.10.5-23) lucid; urgency=low
+
+  * remove service with wrong socket immediately
+
+ -- Anton Tyurin <noxiouz@yandex-team.ru>  Mon, 22 Jul 2013 17:48:08 +0400
+
 cocaine-tornado-proxy (0.10.5-22) lucid; urgency=low
 
   * add information about fd and poll events in /info 
