@@ -202,14 +202,14 @@ def process(obj):
     except Exception as err:
         logger.error(str(err))
     else:
-        headers_from_app = '\r\n'.join(': '.join(_) for _ in chunk['headers'])
+        headers_from_app = '\r\n'.join(': '.join(_) for _ in chunk[1])
         if headers_from_app:
             headers = headers_from_app + '\r\nContent-Length: %d\r\n' % len(message)
         else:
             headers = 'Content-Length: %d\r\n' % len(message)
         response_data = TEMPLATE % {"VERSION" : obj.version,
-                     "CODE" : chunk["code"],
-                     "STATUS" : httplib.responses[chunk["code"]],
+                     "CODE" : chunk[0],
+                     "STATUS" : httplib.responses[chunk[0]],
                      "HEADERS"  : headers,
                      "BODY" : message }
     if obj._finish_time is None:
@@ -218,19 +218,9 @@ def process(obj):
 
 
 def pack_httprequest(request):
-    d = dict()
-    d['meta'] = { "cookies" : dict((item.key, item.value) for item in request.cookies.itervalues()),
-                  "headers" : dict(request.headers),
-                  "host" : request.host,
-                  "method" : request.method,
-                  "script_name" : request.path,
-                  "query_string" : request.query,
-                  "remote_addr" : request.remote_ip,
-                  "url" : request.uri,
-                  "files" : request.files
-                }
-    d['body'] = request.body
-    d['request'] = dict((param, value[0]) for param, value in request.arguments.iteritems())
+    headers = [(item.key, item.value) for item in request.cookies.itervalues()]
+    headers.extend(request.headers.iteritems())
+    d = request.method, request.uri, request.version, headers, request.body
     return d
 
 
