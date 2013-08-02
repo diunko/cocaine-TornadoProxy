@@ -19,7 +19,7 @@ PATH=/sbin:/usr/sbin:/bin:/usr/bin
 PID_PATH=/var/run/cocaine-tornado
 USER="cocaine"
 START_PORT=9080
-TORNADO_COUNT=5
+TORNADO_COUNT=28
 LOG=/var/log/cocaine-tornado/tornado.log
 LOGLEVEL="info" # debug|info|warning|error|none
 CONFIG=/etc/cocaine/cocaine-tornado-proxy.conf
@@ -39,7 +39,7 @@ do_start()
        if [ $3 ]; then
             ARGS=" --count=$3 --port=$PORT --user=$USER --pidfile=$PIDFILE --logging=$LOGLEVEL --log_file_prefix=$LOG --config=$CONFIG"
        else
-            ARGS=" --port=$PORT --user=$USER --pidfile=$PIDFILE --logging=$LOGLEVEL --log_file_prefix=$LOG --config=$CONFIG"
+            ARGS=" --port=$PORT --count=10 --user=$USER --pidfile=$PIDFILE --logging=$LOGLEVEL --log_file_prefix=$LOG --config=$CONFIG"
        fi
        ulimit -n 65000; cocaine-tornado-proxy --daemon $ARGS start
        if [ $? -ne 0 ]; 

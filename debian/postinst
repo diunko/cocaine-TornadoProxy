@@ -16,4 +16,6 @@ fi
 
 chown -R cocaine:adm $PIDDIR
 
+/usr/sbin/update-rc.d cocaine-tornado-proxy defaults
+
 #DEBHELPER#
