@@ -16,9 +16,9 @@
 
 # PATH should only include /usr/* if it runs after the mountnfs.sh script
 PATH=/sbin:/usr/sbin:/bin:/usr/bin
-PID_PATH=/var/run
+PID_PATH=/var/run/cocaine-tornado
 USER="cocaine"
-START_PORT=8080
+START_PORT=9080
 TORNADO_COUNT=5
 LOG=/var/log/cocaine-tornado/tornado.log
 LOGLEVEL="info" # debug|info|warning|error|none

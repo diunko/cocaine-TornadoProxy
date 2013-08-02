@@ -8,8 +8,9 @@ cocaine-tornado-proxy (0.10.5-24) lucid; urgency=low
 
   * Change HTTP code to 502, when requested application isn't available
   or application answers with ERROR
+  * fix init script
 
- -- Anton Tyurin <noxiouz@yandex-team.ru>  Tue, 30 Jul 2013 12:14:47 +0400
+ -- Anton Tyurin <noxiouz@yandex-team.ru>  Fri, 02 Aug 2013 04:17:42 +0400
 
 cocaine-tornado-proxy (0.10.5-23) lucid; urgency=low
 

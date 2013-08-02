@@ -2,12 +2,18 @@
 
 
 LOGDIR="/var/log/cocaine-tornado"
+PIDDIR="/var/run/cocaine-tornado"
 
 if [ ! -d "$LOGDIR" ]; then
     mkdir -p $LOGDIR
 fi
 
-chown cocaine $LOGDIR
+chown -R cocaine:adm $LOGDIR
 
+if [ ! -d "$PIDDIR" ]; then
+    mkdir -p $PIDDIR
+fi
+
+chown -R cocaine:adm $PIDDIR
 
 #DEBHELPER#
