@@ -1,3 +1,9 @@
+cocaine-tornado-proxy (0.10.5-26) lucid; urgency=low
+
+  * make update-rc.d
+
+ -- Anton Tyurin <noxiouz@yandex-team.ru>  Fri, 02 Aug 2013 04:38:19 +0400
+
 cocaine-tornado-proxy (0.10.5-24) lucid; urgency=low
 
   * Change HTTP code to 502, when requested application isn't available
