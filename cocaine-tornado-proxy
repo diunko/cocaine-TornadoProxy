@@ -120,7 +120,7 @@ def async_reconnect(app, name):
             io_loop.add_timeout(time.time() + next_refresh, move_to_inactive(app, name))
     try:
         logger.info(RECONNECT_START, app.name)
-        app.async_reconnect(callback, 1)
+        app.reconnect(timeout=1.0, blocking=False).then(callback)
     except Exception as err:
         logger.exception(RECONNECT_FAIL, name, err)
         dying[name].remove(app)
@@ -152,15 +152,16 @@ def get_service(name):
     if len(cache[name]) < SPOOL_SIZE - len(dying[name]):
         try:
             created = [Service(name) for _ in xrange(0, SPOOL_SIZE - len(cache[name]))]
-
             for app in created:
                 logger.info("Connect to app: %s endpoint %s ", app.name, "{0}:{1}".format(*app.address))
+
             cache[name].extend(created)
             for app in created:
                 io_loop.add_timeout(time.time() + (1 + random.random()) * REFRESH_PERIOD, move_to_inactive(app, name))
         except Exception as err:
             logger.error(str(err))
             return None
+
     chosen = random.choice(cache[name])
     if chosen.isConnected():
         try:
@@ -174,7 +175,7 @@ def get_service(name):
     else:
         logger.warning("Service %s disconnected %s", chosen.name, chosen.address)
         try:
-            chosen.reconnect()
+            chosen.reconnect(blocking=True)
             if chosen.isConnected():
                 try:
                     fd = chosen._pipe.sock.fileno()
@@ -203,7 +204,7 @@ def process(obj):
         message = body.get()
     except ServiceError as err:
         logger.error(str(err))
-        message = "Application error: %s" % str(err.msg)
+        message = "Application error: %s" % str(err)
         response_data = TEMPLATE % {
             "VERSION": obj.version,
             "CODE": 502,
@@ -212,7 +213,7 @@ def process(obj):
             "BODY": message
         }
     except Exception as err:
-        logger.error(str(err))
+        logger.error(err)
     else:
         headers_from_app = '\r\n'.join(': '.join(_) for _ in chunk[1])
         if headers_from_app:
