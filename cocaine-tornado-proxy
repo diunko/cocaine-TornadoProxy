@@ -92,7 +92,7 @@ def reconnector(app, name):
     cache[name].append(app)
     next_refr = (1 + random.random()) * REFRESH_PERIOD
     io_loop.add_timeout(time.time() + next_refr, move_to_inactive(app, name))
-    if app.connected:
+    if app.isConnected():
         logger.info("Reconnect %s %s successfully." % (app.servicename, "%s:%s" % app.service_endpoint[:]))
     else:
         logger.warning("Unable to reconnect %s" % name)
@@ -102,7 +102,7 @@ def async_reconnect(app, name):
     def callback(res):
         try:
             res.get()
-            logger.info("Reconnect %s %d to %s successfully." % (app.servicename, id(app), "%s:%s" % app.service_endpoint[:]))
+            logger.info("Reconnect %s %d to %s successfully." % (app.servicename, id(app), "{0}:{1}".format(*app.service_endpoint)))
         except Exception as err:
             logger.warning("Unable to reconnect %s: %s" % (name, err))
         finally:
@@ -124,7 +124,7 @@ def move_to_inactive(app, name):
         active_apps = len(cache[name])
         if active_apps < SERVICE_CACHE_COUNT:
             return
-        logger.info("Move to inactive queue %s %s from pool with active %d" % (app.servicename, "%s:%s" % app.service_endpoint, active_apps))
+        logger.info("Move to inactive queue %s %s from pool with active %d" % (app.servicename, "{0}:{1}".format(*app.service_endpoint), active_apps))
         # Move service to sandbox for waiting current sessions
         try:
             inx = cache[name].index(app)
@@ -144,8 +144,9 @@ def get_service(name):
         try:
             created = [Service(name)
                                 for _ in xrange(0, SPOOL_SIZE - len(cache[name]))]
-            [logger.info("Connect to app: %s endpoint %s " % (app.servicename, "%s:%s" % app.service_endpoint))
-                                    for app in created]
+
+            for app in created:
+                logger.info("Connect to app: %s endpoint %s " % (app.servicename, "{0}:{1}".format(*app.service_endpoint)))
             cache[name].extend(created)
             for app in created:
                 io_loop.add_timeout(time.time() + (1 + random.random()) * REFRESH_PERIOD, move_to_inactive(app, name))
@@ -153,10 +154,10 @@ def get_service(name):
             logger.error(str(err))
             return None
     chosen = random.choice(cache[name])
-    if chosen.connected:
+    if chosen.isConnected():
         try:
-            fd = chosen.pipe.sock.fileno()
-            chosen.loop._fd_events[fd]
+            fd = chosen._pipe.sock.fileno()
+            chosen._ioLoop._fd_events[fd]
         except Exception as err:
             logger.exception("Wrong fd or missing poll event, so remove this service")
             cache[name].remove(chosen)
@@ -167,10 +168,10 @@ def get_service(name):
                                                         chosen.service_endpoint))
         try:
             chosen.reconnect()
-            if chosen.connected:
+            if chosen.isConnected():
                 try:
-                    fd = chosen.pipe.sock.fileno()
-                    chosen.loop._fd_events[fd]
+                    fd = chosen._pipe.sock.fileno()
+                    chosen._ioLoop._fd_events[fd]
                 except Exception as err:
                     logger.exception("Wrong fd or missing poll event, so remove this service")
                     cache[name].remove(chosen)
@@ -237,14 +238,14 @@ def generate_info():
     msg = "ACTIVE SERVICES\n"
     for k, v in cache.iteritems():
         msg += "%s\n%s\n\n" % (k.upper(), '\n'.join("%s %d %s %s %d %s" % (_.servicename, id(_),
-                                                                           '%s:%d' % _.service_endpoint[:],
-                                                                           _.connected,
-                                                                           _.pipe.fileno(),
-                                                                           str(_.loop._fd_events)
+                                                                           '{0}:{1}'.format(*_.service_endpoint),
+                                                                           _.isConnected(),
+                                                                           _._pipe.fileno(),
+                                                                           str(_._ioLoop._fd_events)
                                                                            ) for _ in v))
     msg += "\nINACTIVE SERVICES\n"
     for k, v in dying.iteritems():
-        msg += "%s\n%s\n\n" % (k.upper(), '\n'.join("%s %d %s %s" % (_.servicename, id(_), '%s:%d' % _.service_endpoint[:], _.connected) for _ in v))
+        msg += "%s\n%s\n\n" % (k.upper(), '\n'.join("%s %d %s %s" % (_.servicename, id(_), '{0}:{1}'.format(*_.service_endpoint), _.isConnected()) for _ in v))
     return msg
 
 def handle_request(request):
