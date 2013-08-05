@@ -43,6 +43,15 @@ from cocaineproxy import Daemon
 from cocaineproxy import load_config
 from cocaineproxy import coroutine
 
+
+RECONNECT_START = "Start asynchronous reconnect %s"
+RECONNECT_SUCCESS = "Reconnect %s %d to %s successfully."
+RECONNECT_FAIL = "Unable to reconnect %s, because %s"
+NEXT_REFRESH = "Next update %d after %d second"
+
+MOVE_TO_INACTIVE = "Move to inactive queue %s %s from pool with active %d"
+
+
 logger = logging.getLogger()
 io_loop = ioloop.IOLoop.instance()
 
@@ -84,7 +93,7 @@ get_timeout = partial(get_timeout, TIMEOUTS, DEFAULT_TIMEOUT)
 # Disabled now - use async_reconnect
 def reconnector(app, name):
     try:
-        logger.info("Try to reconnect %s %s" % (app.servicename, "%s:%s" % app.service_endpoint[:]))
+        logger.info("Try to reconnect %s %s", app.name, "{0}:{1}".format(app.address))
         app.reconnect()
     except Exception as err:
         logger.error("Unable to reconnect %s, because %s" % (name, str(err)))
@@ -93,29 +102,29 @@ def reconnector(app, name):
     next_refr = (1 + random.random()) * REFRESH_PERIOD
     io_loop.add_timeout(time.time() + next_refr, move_to_inactive(app, name))
     if app.isConnected():
-        logger.info("Reconnect %s %s successfully." % (app.servicename, "%s:%s" % app.service_endpoint[:]))
+        logger.info("Reconnect %s %s successfully.", app.name, "{0}:{1}".format(app.address))
     else:
-        logger.warning("Unable to reconnect %s" % name)
+        logger.warning("Unable to reconnect %s", name)
 
 
 def async_reconnect(app, name):
     def callback(res):
         try:
             res.get()
-            logger.info("Reconnect %s %d to %s successfully." % (app.servicename, id(app), "{0}:{1}".format(*app.service_endpoint)))
+            logger.info(RECONNECT_SUCCESS, app.name, id(app), "{0}:{1}".format(*app.address))
         except Exception as err:
-            logger.warning("Unable to reconnect %s: %s" % (name, err))
+            logger.warning(RECONNECT_FAIL, name, err)
         finally:
             dying[name].remove(app)
             cache[name].append(app)
-            next_refr = (1 + random.random()) * REFRESH_PERIOD
-            logger.info("Next update %d after %d second" % (id(app), next_refr))
-            io_loop.add_timeout(time.time() + next_refr, move_to_inactive(app, name))
+            next_refresh = (1 + random.random()) * REFRESH_PERIOD
+            logger.info(NEXT_REFRESH, id(app), next_refresh)
+            io_loop.add_timeout(time.time() + next_refresh, move_to_inactive(app, name))
     try:
-        logger.info("Start asynchronous reconnect %s" % (app.servicename))
+        logger.info(RECONNECT_START, app.name)
         app.async_reconnect(callback, 1)
     except Exception as err:
-        logger.exception("Unable to reconnect %s, because %s" % (name, str(err)))
+        logger.exception(RECONNECT_FAIL, name, err)
         dying[name].remove(app)
 
 
@@ -124,7 +133,7 @@ def move_to_inactive(app, name):
         active_apps = len(cache[name])
         if active_apps < SERVICE_CACHE_COUNT:
             return
-        logger.info("Move to inactive queue %s %s from pool with active %d" % (app.servicename, "{0}:{1}".format(*app.service_endpoint), active_apps))
+        logger.info(MOVE_TO_INACTIVE, app.name, "{0}:{1}".format(*app.address), active_apps)
         # Move service to sandbox for waiting current sessions
         try:
             inx = cache[name].index(app)
@@ -138,15 +147,14 @@ def move_to_inactive(app, name):
     return wrapper
 
 
-SPOOL_SIZE = int(SERVICE_CACHE_COUNT * 1.5) 
+SPOOL_SIZE = int(SERVICE_CACHE_COUNT * 1.5)
 def get_service(name):
     if len(cache[name]) < SPOOL_SIZE - len(dying[name]):
         try:
-            created = [Service(name)
-                                for _ in xrange(0, SPOOL_SIZE - len(cache[name]))]
+            created = [Service(name) for _ in xrange(0, SPOOL_SIZE - len(cache[name]))]
 
             for app in created:
-                logger.info("Connect to app: %s endpoint %s " % (app.servicename, "{0}:{1}".format(*app.service_endpoint)))
+                logger.info("Connect to app: %s endpoint %s ", app.name, "{0}:{1}".format(*app.address))
             cache[name].extend(created)
             for app in created:
                 io_loop.add_timeout(time.time() + (1 + random.random()) * REFRESH_PERIOD, move_to_inactive(app, name))
@@ -164,8 +172,7 @@ def get_service(name):
             return get_service(name)
         return chosen
     else:
-        logger.warning("Service %s disconnected %s" % (chosen.servicename,
-                                                        chosen.service_endpoint))
+        logger.warning("Service %s disconnected %s", chosen.name, chosen.address)
         try:
             chosen.reconnect()
             if chosen.isConnected():
@@ -176,7 +183,7 @@ def get_service(name):
                     logger.exception("Wrong fd or missing poll event, so remove this service")
                     cache[name].remove(chosen)
                     return get_service(name)
-                logger.info("Service %s has reconnected successfully" % chosen.servicename)
+                logger.info("Service %s has reconnected successfully", chosen.name)
                 return chosen
             else:
                 return None
@@ -195,11 +202,13 @@ def process(obj):
     except ServiceError as err:
         logger.error(str(err))
         message = "Application error: %s" % str(err.msg)
-        response_data = TEMPLATE % { "VERSION" : obj.version,
-                         "CODE" : 502,
-                         "STATUS" : httplib.responses[502],
-                         "HEADERS" : 'Content-Length: %d\r\n' % len(message),
-                         "BODY" : message }
+        response_data = TEMPLATE % {
+            "VERSION": obj.version,
+            "CODE": 502,
+            "STATUS": httplib.responses[502],
+            "HEADERS": 'Content-Length: %d\r\n' % len(message),
+            "BODY": message
+        }
     except Exception as err:
         logger.error(str(err))
     else:
@@ -228,7 +237,7 @@ def pack_httprequest(request):
 # Disabled now
 def on_deadline_response(response, req_uri):
     if response._finish_time is None:
-        logger.error("Deadline has reached for %s" % req_uri)
+        logger.error("Deadline has reached for %s", req_uri)
         message = "Maximum time to wait for a response has reached"
         response.write("%s 504 Gateway Timeout\r\nContent-Length: %d\r\n\r\n%s" % (
                  response.version, len(message), message))
@@ -237,16 +246,17 @@ def on_deadline_response(response, req_uri):
 def generate_info():
     msg = "ACTIVE SERVICES\n"
     for k, v in cache.iteritems():
-        msg += "%s\n%s\n\n" % (k.upper(), '\n'.join("%s %d %s %s %d %s" % (_.servicename, id(_),
-                                                                           '{0}:{1}'.format(*_.service_endpoint),
+        msg += "%s\n%s\n\n" % (k.upper(), '\n'.join("%s %d %s %s %d %s" % (_.name, id(_),
+                                                                           '{0}:{1}'.format(*_.address),
                                                                            _.isConnected(),
                                                                            _._pipe.fileno(),
                                                                            str(_._ioLoop._fd_events)
                                                                            ) for _ in v))
     msg += "\nINACTIVE SERVICES\n"
     for k, v in dying.iteritems():
-        msg += "%s\n%s\n\n" % (k.upper(), '\n'.join("%s %d %s %s" % (_.servicename, id(_), '{0}:{1}'.format(*_.service_endpoint), _.isConnected()) for _ in v))
+        msg += "%s\n%s\n\n" % (k.upper(), '\n'.join("%s %d %s %s" % (_.name, id(_), '{0}:{1}'.format(*_.address), _.isConnected()) for _ in v))
     return msg
+
 
 def handle_request(request):
     match = URL_REGEX.match(request.uri)
