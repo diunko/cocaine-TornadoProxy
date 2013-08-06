@@ -130,6 +130,7 @@ def move_to_inactive(app, name):
     def wrapper():
         active_apps = len(cache[name])
         if active_apps < SERVICE_CACHE_COUNT:
+            io_loop.add_timeout(time.time() + get_timeout(name) + 1, move_to_inactive(app, name))
             return
         logger.info(MOVE_TO_INACTIVE, app.name, "{0}:{1}".format(*app.address), active_apps)
         # Move service to sandbox for waiting current sessions
@@ -151,8 +152,10 @@ SPOOL_SIZE = int(SERVICE_CACHE_COUNT * 1.5)
 def get_service(name):
     if len(cache[name]) < SPOOL_SIZE - len(dying[name]):
         try:
-            created = [Service(name) for _ in xrange(0, SPOOL_SIZE - len(cache[name]))]
-            for app in created:
+            created = []
+            for _ in xrange(SPOOL_SIZE - len(cache[name])):
+                app = Service(name)
+                created.append(app)
                 logger.info("Connect to app: %s endpoint %s ", app.name, "{0}:{1}".format(*app.address))
 
             cache[name].extend(created)
@@ -253,10 +256,11 @@ def generate_info():
     msg = "ACTIVE SERVICES\n"
     for k, v in cache.iteritems():
         msg += "%s\n%s\n\n" % (k.upper(), '\n'.join("%s %d %s %s %d %s" % (
-            app.name, id(app),
+            app.name,
+            id(app),
             '{0}:{1}'.format(*app.address),
             app.isConnected(),
-            app._pipe.fileno(),
+            app._pipe.fileno() if app._pipe else -1,
             str(app._ioLoop._fd_events)) for app in v))
     msg += "\nINACTIVE SERVICES\n"
     for k, v in dying.iteritems():
