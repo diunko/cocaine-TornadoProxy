@@ -36,6 +36,8 @@ import msgpack
 from cocaine.services import Service
 from cocaine.exceptions import ServiceError
 from cocaine.exceptions import CocaineError
+from cocaine.exceptions import ChokeEvent
+from cocaine.futures import chain
 
 from cocaineproxy import Daemon
 from cocaineproxy import load_config
@@ -198,26 +200,16 @@ def get_service(name):
 TEMPLATE = "%(VERSION)s %(CODE)d %(STATUS)s\r\n%(HEADERS)s\r\n%(BODY)s"
 
 
-@coroutine
-def process(obj):
+@chain.source
+def process(obj, service, event, data):
+    message_parts = []
     try:
-        headers = yield
-        chunk = headers.get()
-        body = yield
-        message = body.get()
-    except ServiceError as err:
-        logger.error(str(err))
-        message = "Application error: %s" % str(err)
-        response_data = TEMPLATE % {
-            "VERSION": obj.version,
-            "CODE": 502,
-            "STATUS": httplib.responses[502],
-            "HEADERS": 'Content-Length: %d\r\n' % len(message),
-            "BODY": message
-        }
-    except Exception as err:
-        logger.error(err)
-    else:
+        chunk = yield service.enqueue(event, msgpack.packb(data))
+        while True:
+            body = yield
+            message_parts.append(str(body))
+    except ChokeEvent as err:
+        message = ''.join(message_parts)
         headers_from_app = '\r\n'.join(': '.join(_) for _ in chunk[1])
         if headers_from_app:
             headers = headers_from_app + '\r\nContent-Length: %d\r\n' % len(message)
@@ -228,8 +220,25 @@ def process(obj):
             "CODE": chunk[0],
             "STATUS": httplib.responses[chunk[0]],
             "HEADERS": headers,
-            "BODY": message
-        }
+            "BODY": message}
+    except ServiceError as err:
+        logger.error(str(err))
+        message = "Application error: %s" % str(err)
+        response_data = TEMPLATE % {
+            "VERSION": obj.version,
+            "CODE": 502,
+            "STATUS": httplib.responses[502],
+            "HEADERS": 'Content-Length: %d\r\n' % len(message),
+            "BODY": message}
+    except Exception as err:
+        logger.error(err)
+        message = "Unknown error: %s" % str(err)
+        response_data = TEMPLATE % {
+            "VERSION": obj.version,
+            "CODE": 502,
+            "STATUS": httplib.responses[502],
+            "HEADERS": 'Content-Length: %d\r\n' % len(message),
+            "BODY": message}
     if obj._finish_time is None:
         obj.write(response_data)
         obj.finish()
@@ -311,9 +320,8 @@ def handle_request(request):
         return
         
     data = pack_httprequest(request)
-    fut = s.enqueue(event, msgpack.packb(data))
-    g = process(request)
-    fut.then(g.send)
+    #fut = s.enqueue(event, msgpack.packb(data))
+    process(request, s, event, data)
 
 
 def main():
